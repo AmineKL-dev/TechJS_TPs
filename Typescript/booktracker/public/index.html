@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Folio — Reading Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            serif: ['"Playfair Display"', 'Georgia', 'serif'],
+            sans: ['"DM Sans"', 'sans-serif'],
+          },
+          colors: {
+            ink: { DEFAULT: '#1a1208', 50: '#fdf8f0', 100: '#f5e9d0', 200: '#e8ceA0', 300: '#d4a96a', 400: '#bf8840', 500: '#9e6c28', 600: '#7c5220', 700: '#5c3c18', 800: '#3d2810', 900: '#1a1208' },
+            parchment: { DEFAULT: '#f7f0e3', dark: '#ede3ce' },
+            sage: { DEFAULT: '#6b7c6b', light: '#8fa08f' },
+            rust: { DEFAULT: '#b85c38', light: '#d4795a' },
+            slate: { DEFAULT: '#4a5568' }
+          },
+          boxShadow: {
+            'book': '4px 4px 0 #1a1208',
+            'book-hover': '6px 6px 0 #1a1208',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { background-color: #f7f0e3; font-family: 'DM Sans', sans-serif; }
+    .progress-bar { transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+    .book-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+    .book-card:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 #1a1208; }
+    .status-badge { font-size: 0.65rem; letter-spacing: 0.08em; }
+    input, select, textarea {
+      background: #fdf8f0;
+      border: 1.5px solid #d4a96a;
+      border-radius: 0.375rem;
+      padding: 0.5rem 0.75rem;
+      width: 100%;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.875rem;
+      color: #1a1208;
+      transition: border-color 0.15s;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: #9e6c28;
+      box-shadow: 0 0 0 3px rgba(158,108,40,0.15);
+    }
+    label { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #5c3c18; margin-bottom: 0.25rem; display: block; }
+    .modal-backdrop { backdrop-filter: blur(4px); }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    .slide-up { animation: slideUp 0.3s ease forwards; }
+    .spine { width: 8px; background: linear-gradient(to bottom, #9e6c28, #5c3c18); border-radius: 2px 0 0 2px; flex-shrink: 0; }
+  </style>
+</head>
+
+<body class="min-h-screen">
+
+  <!-- ══════════════════ HEADER ══════════════════ -->
+  <header class="border-b-2 border-ink/20 bg-parchment sticky top-0 z-40 shadow-sm">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-10 bg-ink rounded-sm flex items-center justify-center">
+          <svg class="w-4 h-4 text-parchment" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/><path d="M18 2h-2.18C15.4.84 14.3 0 13 0H11c-1.3 0-2.4.84-2.82 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-5 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h8v2zm0-4H7v-2h8v2zm0-4H7V6h8v2z"/></svg>
+        </div>
+        <div>
+          <h1 class="font-serif text-xl font-bold text-ink leading-none">Folio</h1>
+          <p class="text-ink/50 text-xs">Reading Tracker</p>
+        </div>
+      </div>
+      <button onclick="openAddModal()" class="flex items-center gap-2 bg-ink text-parchment px-4 py-2 text-sm font-medium hover:bg-ink/80 transition-colors rounded-sm shadow-book hover:shadow-book-hover active:translate-x-1 active:translate-y-1 active:shadow-none">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        Add Book
+      </button>
+    </div>
+  </header>
+
+  <!-- ══════════════════ STATS BANNER ══════════════════ -->
+  <section class="bg-ink text-parchment py-8">
+    <div class="max-w-6xl mx-auto px-6">
+      <p class="font-serif italic text-parchment/60 text-sm mb-4">Your reading journey</p>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-6" id="stats-grid">
+        <div class="stat-card">
+          <p class="text-parchment/50 text-xs uppercase tracking-widest mb-1">Total Books</p>
+          <p class="font-serif text-4xl font-bold" id="stat-total">—</p>
+        </div>
+        <div class="stat-card">
+          <p class="text-parchment/50 text-xs uppercase tracking-widest mb-1">Books Finished</p>
+          <p class="font-serif text-4xl font-bold text-ink-200" id="stat-finished">—</p>
+        </div>
+        <div class="stat-card">
+          <p class="text-parchment/50 text-xs uppercase tracking-widest mb-1">Total Pages</p>
+          <p class="font-serif text-4xl font-bold" id="stat-pages">—</p>
+        </div>
+        <div class="stat-card">
+          <p class="text-parchment/50 text-xs uppercase tracking-widest mb-1">Pages Read</p>
+          <p class="font-serif text-4xl font-bold text-ink-200" id="stat-pages-read">—</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════ MAIN CONTENT ══════════════════ -->
+  <main class="max-w-6xl mx-auto px-6 py-10">
+
+    <!-- Filter bar -->
+    <div class="flex flex-wrap items-center gap-3 mb-8">
+      <span class="text-xs font-semibold uppercase tracking-widest text-ink/50">Filter:</span>
+      <button onclick="filterBooks('all')" data-filter="all" class="filter-btn active-filter px-3 py-1 text-xs font-medium border-2 border-ink bg-ink text-parchment rounded-sm">All</button>
+      <button onclick="filterBooks('Currently reading')" data-filter="Currently reading" class="filter-btn px-3 py-1 text-xs font-medium border-2 border-ink/30 text-ink/60 hover:border-ink hover:text-ink rounded-sm transition-colors">Reading</button>
+      <button onclick="filterBooks('Want to read')" data-filter="Want to read" class="filter-btn px-3 py-1 text-xs font-medium border-2 border-ink/30 text-ink/60 hover:border-ink hover:text-ink rounded-sm transition-colors">Want to Read</button>
+      <button onclick="filterBooks('Read')" data-filter="Read" class="filter-btn px-3 py-1 text-xs font-medium border-2 border-ink/30 text-ink/60 hover:border-ink hover:text-ink rounded-sm transition-colors">Read</button>
+      <button onclick="filterBooks('DNF')" data-filter="DNF" class="filter-btn px-3 py-1 text-xs font-medium border-2 border-ink/30 text-ink/60 hover:border-ink hover:text-ink rounded-sm transition-colors">DNF</button>
+    </div>
+
+    <!-- Books Grid -->
+    <div id="books-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      <!-- Populated by JS -->
+    </div>
+
+    <!-- Empty state -->
+    <div id="empty-state" class="hidden text-center py-20">
+      <div class="text-6xl mb-4">📚</div>
+      <h3 class="font-serif text-2xl text-ink/40 mb-2">Your shelf is empty</h3>
+      <p class="text-ink/30 text-sm">Add your first book to get started</p>
+    </div>
+
+    <!-- Loading state -->
+    <div id="loading-state" class="text-center py-20">
+      <div class="inline-block w-8 h-8 border-2 border-ink/20 border-t-ink rounded-full animate-spin"></div>
+    </div>
+
+  </main>
+
+  <!-- ══════════════════ ADD/EDIT MODAL ══════════════════ -->
+  <div id="book-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-ink/60 modal-backdrop" onclick="closeModal()"></div>
+    <div class="relative bg-parchment border-2 border-ink w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-book-hover slide-up rounded-sm">
+      <div class="sticky top-0 bg-parchment border-b-2 border-ink/20 px-6 py-4 flex items-center justify-between">
+        <h2 class="font-serif text-xl font-bold text-ink" id="modal-title">Add New Book</h2>
+        <button onclick="closeModal()" class="w-8 h-8 flex items-center justify-center text-ink/50 hover:text-ink hover:bg-ink/10 rounded-sm transition-colors">✕</button>
+      </div>
+
+      <form id="book-form" class="p-6 grid grid-cols-1 md:grid-cols-2 gap-4" onsubmit="submitBook(event)">
+        <input type="hidden" id="book-id" />
+
+        <!-- Title -->
+        <div class="md:col-span-2">
+          <label for="title">Title *</label>
+          <input type="text" id="title" placeholder="e.g. The Name of the Wind" required />
+        </div>
+
+        <!-- Author -->
+        <div>
+          <label for="author">Author *</label>
+          <input type="text" id="author" placeholder="e.g. Patrick Rothfuss" required />
+        </div>
+
+        <!-- Suggested By -->
+        <div>
+          <label for="suggestedBy">Suggested By *</label>
+          <input type="text" id="suggestedBy" placeholder="e.g. A friend, Goodreads…" required />
+        </div>
+
+        <!-- Number of Pages -->
+        <div>
+          <label for="numberOfPages">Total Pages *</label>
+          <input type="number" id="numberOfPages" placeholder="e.g. 662" min="1" required oninput="updateFinishedState()" />
+        </div>
+
+        <!-- Pages Read -->
+        <div>
+          <label for="pagesRead">Pages Read</label>
+          <input type="number" id="pagesRead" placeholder="0" min="0" value="0" oninput="updateFinishedState()" />
+          <p id="finished-hint" class="hidden text-xs text-sage mt-1 font-medium">✓ Book marked as finished!</p>
+        </div>
+
+        <!-- Status -->
+        <div>
+          <label for="status">Status *</label>
+          <select id="status" required>
+            <option value="">— Choose status —</option>
+            <option value="Want to read">Want to Read</option>
+            <option value="Currently reading">Currently Reading</option>
+            <option value="Read">Read</option>
+            <option value="Re-read">Re-read</option>
+            <option value="DNF">DNF</option>
+            <option value="Returned Unread">Returned Unread</option>
+          </select>
+        </div>
+
+        <!-- Format -->
+        <div>
+          <label for="format">Format *</label>
+          <select id="format" required>
+            <option value="">— Choose format —</option>
+            <option value="Print">Print</option>
+            <option value="Ebook">Ebook</option>
+            <option value="PDF">PDF</option>
+            <option value="AudioBook">AudioBook</option>
+          </select>
+        </div>
+
+        <!-- Price -->
+        <div>
+          <label for="price">Price ($) *</label>
+          <input type="number" id="price" placeholder="0.00" min="0" step="0.01" required />
+        </div>
+
+        <!-- Finished display -->
+        <div class="flex items-center gap-3 bg-parchment-dark p-3 rounded-sm border border-ink/10">
+          <div id="finished-indicator" class="w-5 h-5 rounded-sm border-2 border-ink/30 flex items-center justify-center text-xs text-ink/30">✓</div>
+          <div>
+            <p class="text-xs font-semibold text-ink/70">Finished</p>
+            <p class="text-xs text-ink/40">Auto-set when pages read = total pages</p>
+          </div>
+        </div>
+
+        <!-- Submit -->
+        <div class="md:col-span-2 flex gap-3 pt-2 border-t border-ink/10">
+          <button type="button" onclick="closeModal()" class="flex-1 py-2.5 border-2 border-ink/30 text-ink/60 text-sm font-medium hover:border-ink hover:text-ink transition-colors rounded-sm">Cancel</button>
+          <button type="submit" class="flex-1 py-2.5 bg-ink text-parchment text-sm font-semibold hover:bg-ink/80 transition-colors rounded-sm shadow-book hover:shadow-book-hover active:translate-x-0.5 active:translate-y-0.5 active:shadow-none" id="submit-btn">Add Book</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ══════════════════ TOAST ══════════════════ -->
+  <div id="toast" class="hidden fixed bottom-6 right-6 z-[60] px-4 py-3 rounded-sm text-sm font-medium shadow-book-hover text-parchment transition-all duration-300"></div>
+
+  <!-- ══════════════════ CLIENT SCRIPT ══════════════════ -->
+  <script>
+    // ─── State ──────────────────────────────────────────
+    let allBooks = [];
+    let currentFilter = 'all';
+    let editingId = null;
+
+    // ─── Status colours ─────────────────────────────────
+    const STATUS_COLORS = {
+      'Read':             'bg-sage/20 text-sage',
+      'Re-read':          'bg-ink/10 text-ink/70',
+      'DNF':              'bg-rust/15 text-rust',
+      'Currently reading':'bg-ink-200/20 text-ink-400',
+      'Returned Unread':  'bg-ink/10 text-ink/50',
+      'Want to read':     'bg-parchment-dark text-ink/60 border border-ink/20',
+    };
+    const FORMAT_ICONS = { Print: '📖', PDF: '📄', Ebook: '📱', AudioBook: '🎧' };
+
+    // ─── API helpers ─────────────────────────────────────
+    async function api(path, opts = {}) {
+      const res = await fetch('/api/books' + path, {
+        headers: { 'Content-Type': 'application/json' },
+        ...opts,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Request failed' }));
+        throw new Error(err.error || 'Request failed');
+      }
+      return res.json();
+    }
+
+    // ─── Load data ───────────────────────────────────────
+    async function loadBooks() {
+      try {
+        allBooks = await api('/');
+        renderBooks();
+        loadStats();
+      } catch {
+        showToast('Could not connect to server. Make sure the backend is running.', 'error');
+        document.getElementById('loading-state').classList.add('hidden');
+        document.getElementById('empty-state').classList.remove('hidden');
+      }
+    }
+
+    async function loadStats() {
+      try {
+        const s = await api('/stats');
+        document.getElementById('stat-total').textContent = s.totalBooks.toLocaleString();
+        document.getElementById('stat-finished').textContent = s.booksRead.toLocaleString();
+        document.getElementById('stat-pages').textContent = s.totalPages.toLocaleString();
+        document.getElementById('stat-pages-read').textContent = s.pagesRead.toLocaleString();
+      } catch {}
+    }
+
+    // ─── Render ──────────────────────────────────────────
+    function renderBooks() {
+      document.getElementById('loading-state').classList.add('hidden');
+      const container = document.getElementById('books-container');
+      const empty = document.getElementById('empty-state');
+
+      const books = currentFilter === 'all'
+        ? allBooks
+        : allBooks.filter(b => b.status === currentFilter);
+
+      if (books.length === 0) {
+        container.innerHTML = '';
+        empty.classList.remove('hidden');
+        return;
+      }
+      empty.classList.add('hidden');
+
+      container.innerHTML = books.map(book => {
+        const progress = book.numberOfPages > 0
+          ? Math.round((book.pagesRead / book.numberOfPages) * 100)
+          : 0;
+        const statusClass = STATUS_COLORS[book.status] || 'bg-ink/10 text-ink';
+        const icon = FORMAT_ICONS[book.format] || '📚';
+        const progressColor = book.finished ? '#6b7c6b' : progress > 60 ? '#9e6c28' : '#1a1208';
+
+        return `
+          <div class="book-card bg-white border-2 border-ink rounded-sm shadow-book flex overflow-hidden" data-id="${book._id}">
+            <div class="spine" style="background: linear-gradient(to bottom, ${progressColor}, #3d2810);"></div>
+            <div class="flex-1 p-4">
+              <div class="flex items-start justify-between gap-2 mb-1">
+                <h3 class="font-serif font-bold text-ink leading-snug line-clamp-2">${escHtml(book.title)}</h3>
+                <span class="status-badge px-2 py-0.5 rounded-full whitespace-nowrap font-semibold uppercase ${statusClass}">${escHtml(book.status)}</span>
+              </div>
+              <p class="text-ink/60 text-xs mb-3">by ${escHtml(book.author)} · ${icon} ${escHtml(book.format)}</p>
+
+              <!-- Progress -->
+              <div class="mb-3">
+                <div class="flex justify-between items-center mb-1">
+                  <span class="text-xs text-ink/50">${book.pagesRead} / ${book.numberOfPages} pages</span>
+                  <span class="text-xs font-bold text-ink">${progress}%</span>
+                </div>
+                <div class="w-full h-1.5 bg-parchment-dark rounded-full overflow-hidden">
+                  <div class="h-full progress-bar rounded-full" style="width:${progress}%; background-color:${progressColor};"></div>
+                </div>
+              </div>
+
+              <div class="flex items-center justify-between text-xs text-ink/40">
+                <span>💡 ${escHtml(book.suggestedBy)}</span>
+                <span>$${Number(book.price).toFixed(2)}</span>
+              </div>
+
+              ${book.finished ? '<div class="mt-2 text-xs font-semibold text-sage flex items-center gap-1">✓ Finished</div>' : ''}
+
+              <!-- Actions -->
+              <div class="flex gap-2 mt-3 pt-3 border-t border-ink/10">
+                <button onclick="openEditModal('${book._id}')" class="flex-1 text-xs py-1.5 border border-ink/20 text-ink/60 hover:border-ink hover:text-ink transition-colors rounded-sm">Edit</button>
+                <button onclick="deleteBook('${book._id}', '${escHtml(book.title)}')" class="flex-1 text-xs py-1.5 border border-rust/30 text-rust/60 hover:border-rust hover:text-rust transition-colors rounded-sm">Delete</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ─── Filter ──────────────────────────────────────────
+    function filterBooks(filter) {
+      currentFilter = filter;
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        const isActive = btn.dataset.filter === filter;
+        btn.className = btn.className.replace(/active-filter\s?/, '');
+        if (isActive) {
+          btn.className = 'filter-btn active-filter px-3 py-1 text-xs font-medium border-2 border-ink bg-ink text-parchment rounded-sm';
+        } else {
+          btn.className = 'filter-btn px-3 py-1 text-xs font-medium border-2 border-ink/30 text-ink/60 hover:border-ink hover:text-ink rounded-sm transition-colors';
+        }
+      });
+      renderBooks();
+    }
+
+    // ─── Modal ───────────────────────────────────────────
+    function openAddModal() {
+      editingId = null;
+      document.getElementById('modal-title').textContent = 'Add New Book';
+      document.getElementById('submit-btn').textContent = 'Add Book';
+      document.getElementById('book-form').reset();
+      document.getElementById('book-id').value = '';
+      document.getElementById('pagesRead').value = '0';
+      updateFinishedState();
+      document.getElementById('book-modal').classList.remove('hidden');
+    }
+
+    function openEditModal(id) {
+      const book = allBooks.find(b => b._id === id);
+      if (!book) return;
+      editingId = id;
+      document.getElementById('modal-title').textContent = 'Edit Book';
+      document.getElementById('submit-btn').textContent = 'Save Changes';
+      document.getElementById('book-id').value = id;
+      document.getElementById('title').value = book.title;
+      document.getElementById('author').value = book.author;
+      document.getElementById('suggestedBy').value = book.suggestedBy;
+      document.getElementById('numberOfPages').value = book.numberOfPages;
+      document.getElementById('pagesRead').value = book.pagesRead;
+      document.getElementById('status').value = book.status;
+      document.getElementById('format').value = book.format;
+      document.getElementById('price').value = book.price;
+      updateFinishedState();
+      document.getElementById('book-modal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('book-modal').classList.add('hidden');
+    }
+
+    // ─── Auto-finish detection ───────────────────────────
+    function updateFinishedState() {
+      const total = parseInt(document.getElementById('numberOfPages').value) || 0;
+      const read = parseInt(document.getElementById('pagesRead').value) || 0;
+      const finished = total > 0 && read >= total;
+      const indicator = document.getElementById('finished-indicator');
+      const hint = document.getElementById('finished-hint');
+      if (finished) {
+        indicator.className = 'w-5 h-5 rounded-sm border-2 border-sage bg-sage flex items-center justify-center text-xs text-white';
+        hint.classList.remove('hidden');
+      } else {
+        indicator.className = 'w-5 h-5 rounded-sm border-2 border-ink/30 flex items-center justify-center text-xs text-ink/30';
+        hint.classList.add('hidden');
+      }
+      // Cap pagesRead at numberOfPages
+      if (read > total && total > 0) {
+        document.getElementById('pagesRead').value = total;
+      }
+    }
+
+    // ─── Submit ──────────────────────────────────────────
+    async function submitBook(e) {
+      e.preventDefault();
+      const total = parseInt(document.getElementById('numberOfPages').value);
+      const read = Math.min(parseInt(document.getElementById('pagesRead').value) || 0, total);
+
+      const payload = {
+        title:         document.getElementById('title').value.trim(),
+        author:        document.getElementById('author').value.trim(),
+        suggestedBy:   document.getElementById('suggestedBy').value.trim(),
+        numberOfPages: total,
+        pagesRead:     read,
+        status:        document.getElementById('status').value,
+        format:        document.getElementById('format').value,
+        price:         parseFloat(document.getElementById('price').value),
+        finished:      read >= total,
+      };
+
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+
+      try {
+        if (editingId) {
+          await api('/' + editingId, { method: 'PUT', body: JSON.stringify(payload) });
+          showToast('Book updated!', 'success');
+        } else {
+          await api('/', { method: 'POST', body: JSON.stringify(payload) });
+          showToast('Book added!', 'success');
+        }
+        closeModal();
+        loadBooks();
+      } catch (err) {
+        showToast(err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = editingId ? 'Save Changes' : 'Add Book';
+      }
+    }
+
+    // ─── Delete ──────────────────────────────────────────
+    async function deleteBook(id, title) {
+      if (!confirm(`Delete "${title}"?`)) return;
+      try {
+        await api('/' + id, { method: 'DELETE' });
+        showToast('Book removed from shelf', 'success');
+        loadBooks();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    // ─── Toast ───────────────────────────────────────────
+    function showToast(msg, type = 'success') {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = `fixed bottom-6 right-6 z-[60] px-4 py-3 rounded-sm text-sm font-medium shadow-book text-parchment transition-all duration-300 ${type === 'error' ? 'bg-rust' : 'bg-sage'}`;
+      t.classList.remove('hidden');
+      setTimeout(() => t.classList.add('hidden'), 3000);
+    }
+
+    // ─── Escape HTML ─────────────────────────────────────
+    function escHtml(str) {
+      return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    // ─── Keyboard close ──────────────────────────────────
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+    // ─── Init ────────────────────────────────────────────
+    loadBooks();
+  </script>
+</body>
+</html>

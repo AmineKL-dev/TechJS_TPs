@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pokémon Battle Simulator</title>
+
+<style>
+body { font-family: Arial; background: #f0f0f0; text-align: center; }
+
+.battle-container {
+    display: flex;
+    justify-content: space-around;
+    margin-top: 50px;
+}
+
+.card {
+    background: white;
+    padding: 20px;
+    border-radius: 15px;
+    width: 250px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.hp-bar {
+    width: 100%;
+    height: 20px;
+    background: #ddd;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.hp-fill {
+    height: 100%;
+    background: #4caf50;
+    transition: width 0.3s;
+}
+
+.moves-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+}
+
+button {
+    padding: 8px;
+    border: none;
+    border-radius: 5px;
+    background: #3498db;
+    color: white;
+    cursor: pointer;
+}
+
+#log {
+    margin-top: 20px;
+    background: #222;
+    color: #0f0;
+    padding: 10px;
+    height: 120px;
+    overflow-y: scroll;
+    font-family: monospace;
+}
+
+.sprite {
+    width: 120px;
+    height: 120px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>Pokémon Battle Simulator</h1>
+
+<input type="text" id="pokeInput" placeholder="Enter Pokemon (e.g. pikachu)">
+<button onclick="startGame()">Start Battle</button>
+
+<div class="battle-container">
+
+    <div class="card">
+        <h2 id="playerName">Player</h2>
+        <img id="playerSprite" class="sprite">
+        <div class="hp-bar"><div id="playerHpFill" class="hp-fill"></div></div>
+        <p>HP: <span id="playerHp"></span> / 300</p>
+        <div id="playerMoves" class="moves-grid"></div>
+    </div>
+
+    <div class="card">
+        <h2 id="botName">Bot</h2>
+        <img id="botSprite" class="sprite">
+        <div class="hp-bar"><div id="botHpFill" class="hp-fill"></div></div>
+        <p>HP: <span id="botHp"></span> / 300</p>
+    </div>
+
+</div>
+
+<div id="log">Start the game!</div>
+
+<script>
+
+let player = {};
+let bot = {};
+const logEl = document.getElementById("log");
+
+function log(msg) {
+    logEl.innerHTML += `<div>> ${msg}</div>`;
+    logEl.scrollTop = logEl.scrollHeight;
+}
+
+// ✅ FIXED FUNCTION
+async function getPokemonData(name) {
+    try {
+        // handle string OR number
+        const formattedName = typeof name === "string"
+            ? name.toLowerCase()
+            : name;
+
+        const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${formattedName}`);
+        if (!res.ok) throw new Error("Not found");
+
+        const data = await res.json();
+
+        const movePromises = data.moves
+            .sort(() => 0.5 - Math.random())
+            .slice(0, 5)
+            .map(m => fetch(m.move.url).then(r => r.json()));
+
+        let moveDetails = await Promise.all(movePromises);
+
+        // filter usable moves
+        moveDetails = moveDetails
+            .filter(m => m.power !== null)
+            .map(m => ({
+                name: m.name,
+                power: m.power || 40,
+                pp: m.pp || 20,
+                accuracy: m.accuracy || 100
+            }));
+
+        // fallback move
+        if (moveDetails.length === 0) {
+            moveDetails.push({
+                name: "struggle",
+                power: 50,
+                pp: 10,
+                accuracy: 100
+            });
+        }
+
+        return {
+            name: data.name.toUpperCase(),
+            sprite: data.sprites.front_default,
+            moves: moveDetails,
+            hp: 300
+        };
+
+    } catch (err) {
+        alert("Pokemon not found!");
+        throw err;
+    }
+}
+
+async function startGame() {
+    const input = document.getElementById("pokeInput").value;
+    if (!input) return alert("Enter a Pokemon!");
+
+    logEl.innerHTML = "Loading...";
+
+    player = await getPokemonData(input);
+    bot = await getPokemonData(Math.floor(Math.random() * 151) + 1);
+
+    updateUI();
+    log(`A wild ${bot.name} appeared!`);
+}
+
+function updateUI() {
+
+    document.getElementById("playerName").innerText = player.name;
+    document.getElementById("playerSprite").src = player.sprite;
+    document.getElementById("playerHp").innerText = player.hp;
+    document.getElementById("playerHpFill").style.width = (player.hp / 300 * 100) + "%";
+
+    document.getElementById("botName").innerText = bot.name;
+    document.getElementById("botSprite").src = bot.sprite;
+    document.getElementById("botHp").innerText = bot.hp;
+    document.getElementById("botHpFill").style.width = (bot.hp / 300 * 100) + "%";
+
+    const movesDiv = document.getElementById("playerMoves");
+    movesDiv.innerHTML = "";
+
+    player.moves.forEach((move, i) => {
+        const btn = document.createElement("button");
+        btn.innerText = `${move.name} (${move.power})`;
+        btn.onclick = () => handleTurn(i);
+        movesDiv.appendChild(btn);
+    });
+}
+
+function handleTurn(index) {
+
+    const pMove = player.moves[index];
+    const bMove = bot.moves[Math.floor(Math.random() * bot.moves.length)];
+
+    attack(player, bot, pMove, "Player");
+
+    if (bot.hp <= 0) return endGame("You win!");
+
+    setTimeout(() => {
+        attack(bot, player, bMove, "Bot");
+
+        if (player.hp <= 0) return endGame("Bot wins!");
+
+        updateUI();
+    }, 700);
+
+    updateUI();
+}
+
+function attack(attacker, defender, move, label) {
+
+    const avgPP = defender.moves.reduce((s, m) => s + m.pp, 0) / defender.moves.length;
+
+    if (move.pp < avgPP) {
+        log(`${label}'s ${move.name} failed (low PP)`);
+        return;
+    }
+
+    if (Math.random() * 100 > move.accuracy) {
+        log(`${label}'s ${move.name} missed`);
+        return;
+    }
+
+    const damage = Math.floor((move.power * (0.8 + Math.random() * 0.4)) / 5);
+
+    defender.hp = Math.max(0, defender.hp - damage);
+
+    log(`${label} used ${move.name} → ${damage} dmg`);
+}
+
+function endGame(msg) {
+    setTimeout(() => {
+        alert(msg);
+        location.reload();
+    }, 300);
+}
+
+</script>
+
+</body>
+</html>
